@@ -6,13 +6,17 @@ import skimage.io  # модуль для обработки изображени
 
 def mse(img1, img2):  # можно задавать значения параметров по умолчанию
     """Вычисление среднеквадратической ошибки между двумя изображениями."""
-    height, width = img1.shape
+    height, width = img1.shape[:2]
     error_sum = 0.0
+
+    img1 = img1.astype(np.float32)
+    img2 = img2.astype(np.float32)
+
     for i in range(height):
         for j in range(width):
-            error_sum += (img1[i][j] - img2[i][j]) ** 2
-    mse_value = error_sum / (height * width)
-    print(mse_value)
+            error_sum += (img1[i][j] - img2[i][j]) ** 2 / (height * width)
+    mse_value = error_sum
+    return mse_value
 
 
 def psnr(img1, img2):  # можно задавать значения параметров по умолчанию
@@ -27,7 +31,7 @@ def psnr(img1, img2):  # можно задавать значения парам
 
 def ssim(img1, img2):  # можно задавать значения параметров по умолчанию
     """Вычисление индекса структурного сходства (SSIM) между двумя изображениями."""
-    height, width = img1.shape
+    height, width = img1.shape[:2]
     # Средние значения
     mean1, mean2 = 0.0, 0.0
     for i in range(height):
@@ -165,8 +169,7 @@ def compare(img1, img2):
 
 def img_prepare(img):
     imgr = img / 255
-    if len(img1.shape) == 3:  # оставим только 1 канал (пусть будет 0-й) для удобства: всё равно это ч/б изображение
-        imgr = img[:, :, 0]
+    imgr = img[:, :, 0]
     return imgr
 
 if __name__ == '__main__':  # если файл выполняется как отдельный скрипт (python script.py), то здесь будет True. Если импортируется как модуль, то False. Без этой строки весь код ниже будет выполняться и при импорте файла в виде модуля (например, если захотим использовать эти функции в другой программе), а это не всегда надо.
@@ -180,8 +183,9 @@ if __name__ == '__main__':  # если файл выполняется как о
     parser.add_argument('parameters', nargs='*')  # все параметры сохранятся в список: [par1, par2,...] (или в пустой список [], если их нет)
     parser.add_argument('input_file1')
     parser.add_argument('input_file2')
-    parser.add_argument('output_file')
     args = parser.parse_args()
+
+    res = None
 
     # Можете посмотреть, как распознаются разные параметры. Но в самом решении лишнего вывода быть не должно.
     # print('Распознанные параметры:')
@@ -198,7 +202,8 @@ if __name__ == '__main__':  # если файл выполняется как о
     if args.command == 'mse':
         img2 = skimage.io.imread(args.input_file2)
         img2 = img_prepare(img2)
-        mse(img1, img2)
+        ans = mse(img1, img2)
+        print(ans)
 
     elif args.command == 'psnr':
         img2 = skimage.io.imread(args.input_file2)
@@ -232,7 +237,7 @@ if __name__ == '__main__':  # если файл выполняется как о
         # сохранить результат
         res = np.clip(res, 0, 1)  # обрезать всё, что выходит за диапазон [0, 1]
         res = np.round(res * 255).astype(np.uint8)  # конвертация в байты
-        skimage.io.imsave(args.output_file, res)
+        skimage.io.imsave(args.input_file2, res)
 
 
     # Ещё некоторые полезные штуки в Питоне:
