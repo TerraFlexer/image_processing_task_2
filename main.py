@@ -5,118 +5,169 @@ import skimage.io  # модуль для обработки изображени
 
 
 def mse(img1, img2):  # можно задавать значения параметров по умолчанию
-    '''Отразить изображение'''  # комментарий docsting - выводится в подсказке к функции
-    height, width = img1.shape[:2]  # 3-я ось (каналы цветов) нам здесь не нужна
-    
-
-    #raise NotImplementedError('Напишите код функции!')  # Вызвать исключение нужного типа (надо удалить, чтобы функция работала)
-    
-    return res
+    """Вычисление среднеквадратической ошибки между двумя изображениями."""
+    height, width = img1.shape
+    error_sum = 0.0
+    for i in range(height):
+        for j in range(width):
+            error_sum += (img1[i][j] - img2[i][j]) ** 2
+    mse_value = error_sum / (height * width)
+    print(mse_value)
 
 
 def psnr(img1, img2):  # можно задавать значения параметров по умолчанию
-    '''Отразить изображение'''  # комментарий docsting - выводится в подсказке к функции
-    height, width = img1.shape[:2]  # 3-я ось (каналы цветов) нам здесь не нужна
-    
-
-    #raise NotImplementedError('Напишите код функции!')  # Вызвать исключение нужного типа (надо удалить, чтобы функция работала)
-    
-    return res
+    """Вычисление пикового отношения сигнал/шум между двумя изображениями."""
+    mse_value = mse(img1, img2)
+    if mse_value == 0:
+        return float('inf')  # Бесконечность, если изображения идентичны
+    max_pixel_value = 1.0  # Нормализуем до диапазона [0, 1]
+    psnr_value = 20 * np.log10(max_pixel_value / np.sqrt(mse_value))
+    print(psnr_value)
 
 
 def ssim(img1, img2):  # можно задавать значения параметров по умолчанию
-    '''Отразить изображение'''  # комментарий docsting - выводится в подсказке к функции
-    height, width = img1.shape[:2]  # 3-я ось (каналы цветов) нам здесь не нужна
-    
-
-    #raise NotImplementedError('Напишите код функции!')  # Вызвать исключение нужного типа (надо удалить, чтобы функция работала)
-    
-    return res
-
-
-def extract(img, left_x, top_y, width, height: int):  # можно задавать типы параметров: будут выводится в подсказке к функции, но проверки типов нет
-    res = np.empty((height, width), dtype=float)  # просто массив, без заполнения нулями или единицами после создания
-    
-    # тут ваш код
-    #raise NotImplementedError('Напишите код функции!')
-
-    h, w = img.shape[:2]
-
+    """Вычисление индекса структурного сходства (SSIM) между двумя изображениями."""
+    height, width = img1.shape
+    # Средние значения
+    mean1, mean2 = 0.0, 0.0
     for i in range(height):
         for j in range(width):
-            if top_y + i < 0 or left_x + j < 0 or top_y + i >= h or left_x + j >= w:
-                res[i][j] = 0
-            else:
-                res[i][j] = img[top_y + i][left_x + j]
-
-                
-    return res
-
-
-def rotate(img, direction, angle):
-    # тут ваш код
-    # raise NotImplementedError('Напишите код функции!')
-
-    h, w = img.shape[:2]
-
-    angle %= 360
-
-    if angle == 90 and direction == 'ccw' or angle == 270 and direction == 'cw':
-        res = np.zeros((w, h), dtype=float)
-        for i in range(h):
-            for j in range(w):
-                res[j][i] = img[i][w - j - 1]
-    if angle == 180:
-        res = np.zeros((h, w), dtype=float)
-        for i in range(h):
-            for j in range(w):
-                res[i][j] = img[h - i - 1][w - j - 1]
-    if angle == 90 and direction == 'cw' or angle == 270 and direction == 'ccw':
-        res = np.zeros((w, h), dtype=float)
-        for i in range(h):
-            for j in range(w):
-                res[j][i] = img[h - i - 1][j]
-    if angle == 0:
-        res = np.zeros((h, w), dtype=float)
-        for i in range(h):
-            for j in range(w):
-                res[i][j] = img[i][j]
+            mean1 += img1[i][j]
+            mean2 += img2[i][j]
+    mean1 /= (height * width)
+    mean2 /= (height * width)
     
-    return res
-
-
-def autocontrast(img):
-    res = np.zeros_like(img)  # массив из нулей такой же формы и типа
+    # Дисперсии и ковариация
+    var1, var2, covariance = 0.0, 0.0, 0.0
+    for i in range(height):
+        for j in range(width):
+            diff1 = img1[i][j] - mean1
+            diff2 = img2[i][j] - mean2
+            var1 += diff1 ** 2
+            var2 += diff2 ** 2
+            covariance += diff1 * diff2
+    var1 /= (height * width - 1)
+    var2 /= (height * width - 1)
+    covariance /= (height * width - 1)
     
-    # тут ваш код
-    # raise NotImplementedError('Напишите код функции!')
-
-    h, w = img.shape[:2]
-
-    mx = 0
-    mn = 256
-
-    for i in range(h):
-        for j in range(w):
-            if img[i][j] > mx:
-                mx = img[i][j]
-            if img[i][j] < mn:
-                mn = img[i][j]
-
-    div = mx - mn
+    # Параметры стабилизации
+    C1 = (0.01 ** 2)
+    C2 = (0.03 ** 2)
     
-    for i in range(h):
-        for j in range(w):
-            res[i][j] = (img[i][j] - mn) / div
-
-                
-    return res
+    # Вычисление SSIM
+    ssim_value = ((2 * mean1 * mean2 + C1) * (2 * covariance + C2)) / ((mean1 ** 2 + mean2 ** 2 + C1) * (var1 + var2 + C2))
+    print(ssim_value)
 
 
-def fixinterlace(img):
-           
-    return res
+def gauss(img, sigma_d):
+    """Применение гауссового фильтра к изображению."""
+    height, width = img.shape
+    # Определение размера ядра
+    kernel_radius = int(3 * sigma_d)
+    kernel_size = 2 * kernel_radius + 1
+    
+    # Создание ядра Гаусса
+    gauss_kernel = np.zeros((kernel_size, kernel_size))
+    for x in range(-kernel_radius, kernel_radius + 1):
+        for y in range(-kernel_radius, kernel_radius + 1):
+            gauss_kernel[x + kernel_radius][y + kernel_radius] = np.exp(-(x**2 + y**2) / (2 * sigma_d**2))
+    
+    # Нормализация ядра
+    gauss_kernel /= np.sum(gauss_kernel)
+    
+    # Применение фильтра
+    result = np.zeros_like(img)
+    for i in range(height):
+        for j in range(width):
+            weighted_sum = 0.0
+            for x in range(-kernel_radius, kernel_radius + 1):
+                for y in range(-kernel_radius, kernel_radius + 1):
+                    xi = min(max(i + x, 0), height - 1)
+                    yj = min(max(j + y, 0), width - 1)
+                    weighted_sum += img[xi][yj] * gauss_kernel[x + kernel_radius][y + kernel_radius]
+            result[i][j] = weighted_sum
+    return result
 
+
+def bilateral(img, sigma_d, sigma_r):
+    """Применение билатерального фильтра к изображению."""
+    height, width = img.shape
+    result = np.zeros_like(img)
+    
+    # Определение радиуса ядра
+    kernel_radius = int(3 * sigma_d)
+    
+    for i in range(height):
+        for j in range(width):
+            weighted_sum = 0.0
+            normalization = 0.0
+            
+            # Применение фильтра
+            for x in range(-kernel_radius, kernel_radius + 1):
+                for y in range(-kernel_radius, kernel_radius + 1):
+                    xi = min(max(i + x, 0), height - 1)
+                    yj = min(max(j + y, 0), width - 1)
+                    
+                    # Пространственное расстояние
+                    spatial_weight = np.exp(-(x**2 + y**2) / (2 * sigma_d**2))
+                    
+                    # Интенсивность
+                    intensity_weight = np.exp(-((img[xi][yj] - img[i][j]) ** 2) / (2 * sigma_r**2))
+                    
+                    weight = spatial_weight * intensity_weight
+                    weighted_sum += img[xi][yj] * weight
+                    normalization += weight
+            
+            result[i][j] = weighted_sum / normalization
+    return result
+
+
+def median(img, rad):
+    """Применение медианной фильтрации с окном (2 * rad + 1) x (2 * rad + 1)."""
+    height, width = img.shape
+    window_size = 2 * rad + 1  # Размер окна фильтрации
+    result = np.zeros_like(img)
+    
+    # Применение медианной фильтрации
+    for i in range(height):
+        for j in range(width):
+            # Определяем границы окна
+            i_min = max(i - rad, 0)
+            i_max = min(i + rad + 1, height)
+            j_min = max(j - rad, 0)
+            j_max = min(j + rad + 1, width)
+            
+            # Извлекаем подматрицу и находим медиану
+            window = img[i_min:i_max, j_min:j_max]
+            median_value = np.median(window)
+            result[i, j] = median_value
+    
+    return result
+
+
+def compare(img1, img2):
+    """Сравнение изображений на основе преобразования Фурье."""
+    # Преобразование Фурье
+    fft1 = np.fft.fft2(img1)
+    fft2 = np.fft.fft2(img2)
+    
+    # Вычисление амплитуд
+    amplitude1 = np.abs(fft1)
+    amplitude2 = np.abs(fft2)
+    
+    # Вычисление разницы амплитуд
+    diff = np.abs(amplitude1 - amplitude2)
+    threshold = np.max(amplitude1) * 0.1  # пример порога сравнения
+    match = np.mean(diff) < threshold
+    
+    return match
+
+
+def img_prepare(img):
+    imgr = img / 255
+    if len(img1.shape) == 3:  # оставим только 1 канал (пусть будет 0-й) для удобства: всё равно это ч/б изображение
+        imgr = img[:, :, 0]
+    return imgr
 
 if __name__ == '__main__':  # если файл выполняется как отдельный скрипт (python script.py), то здесь будет True. Если импортируется как модуль, то False. Без этой строки весь код ниже будет выполняться и при импорте файла в виде модуля (например, если захотим использовать эти функции в другой программе), а это не всегда надо.
     # получить значения параметров командной строки
@@ -140,39 +191,42 @@ if __name__ == '__main__':  # если файл выполняется как о
     # print('Выходной файл:', args.output_file)
 
     img1 = skimage.io.imread(args.input_file1)  # прочитать изображение
-    img2 = skimage.io.imread(args.input_file1)  # прочитать изображение
 
-    img1 = img1 / 255  # перевести во float и диапазон [0, 1]
-    img2 = img2 / 255
-    if len(img1.shape) == 3:  # оставим только 1 канал (пусть будет 0-й) для удобства: всё равно это ч/б изображение
-        img1 = img1[:, :, 0]
-
-    if len(img2.shape) == 3:  # оставим только 1 канал (пусть будет 0-й) для удобства: всё равно это ч/б изображение
-        img2 = img2[:, :, 0]
+    img1 = img_prepare(img1)
 
     # получить результат обработки для разных комманд
     if args.command == 'mse':
-        res = mse(img1, img2)
+        img2 = skimage.io.imread(args.input_file2)
+        img2 = img_prepare(img2)
+        mse(img1, img2)
 
     elif args.command == 'psnr':
-        ans = psnr(img1, img2)
+        img2 = skimage.io.imread(args.input_file2)
+        img2 = img_prepare(img2)
+        psnr(img1, img2)
 
-    elif args.command == 'rssim':
-        direction = args.parameters[0]
-        angle = int(args.parameters[1])
-        res = rotate(img, direction, angle)
+    elif args.command == 'ssim':
+        img2 = skimage.io.imread(args.input_file2)
+        img2 = img_prepare(img2)
+        ssim(img1, img2)
 
-    elif args.command == 'amedian':
-        res = autocontrast(img)
+    elif args.command == 'median':
+        rad = args.parameters[0]
+        res = median(img1, rad)
 
     elif args.command == 'gauss':
-        res = fixinterlace(img)
+        sigma_d = args.parameters[0]
+        res = gauss(img1, sigma_d)
 
     elif args.command == 'bilateral':
-        res = fixinterlace(img)
+        sigma_d = args.parameters[0]
+        sigma_r = args.parameters[1]
+        res = bilateral(img1, sigma_d, sigma_r)
 
     elif args.command == 'compare':
-        res = fixinterlace(img)
+        img2 = skimage.io.imread(args.input_file2)
+        img2 = img_prepare(img2)
+        compare(img1, img2)
 
     if res != None:
         # сохранить результат
