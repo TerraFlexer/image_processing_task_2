@@ -74,27 +74,32 @@ def gauss(img, sigma_d):
     gauss_kernel = np.zeros((kernel_size, kernel_size))
     for x in range(-kernel_radius, kernel_radius + 1):
         for y in range(-kernel_radius, kernel_radius + 1):
-            gauss_kernel[x + kernel_radius][y + kernel_radius] = np.exp(-(x**2 + y**2) / (2 * sigma_d**2))
+            gauss_kernel[x + kernel_radius, y + kernel_radius] = np.exp(-(x**2 + y**2) / (2 * sigma_d**2))
     
     # Нормализация ядра
     gauss_kernel /= np.sum(gauss_kernel)
     
     # Применение фильтра
-    result = np.zeros_like(img)
+    result = np.zeros_like(img, dtype=np.float64)  # Используем float64 для точности вычислений
     for i in range(height):
         for j in range(width):
             weighted_sum = 0.0
             for x in range(-kernel_radius, kernel_radius + 1):
                 for y in range(-kernel_radius, kernel_radius + 1):
+                    # Корректировка координат за пределами изображения (дублирование ближайшего пикселя)
                     xi = min(max(i + x, 0), height - 1)
                     yj = min(max(j + y, 0), width - 1)
-                    weighted_sum += img[xi][yj] * gauss_kernel[x + kernel_radius][y + kernel_radius]
-            result[i][j] = weighted_sum
+                    weighted_sum += img[xi, yj] * gauss_kernel[x + kernel_radius, y + kernel_radius]
+            result[i, j] = weighted_sum
+    
+    # Приводим значения пикселей к диапазону [0, 255] и преобразуем к uint8
+    result = np.clip(result, 0, 255).astype(np.uint8)
     return result
 
 
 def bilateral(img, sigma_d, sigma_r):
     """Применение билатерального фильтра к изображению."""
+    img = img.astype(np.float64)  # Преобразуем изображение в float64 для предотвращения переполнения
     height, width = img.shape
     result = np.zeros_like(img)
     
@@ -116,55 +121,95 @@ def bilateral(img, sigma_d, sigma_r):
                     spatial_weight = np.exp(-(x**2 + y**2) / (2 * sigma_d**2))
                     
                     # Интенсивность
-                    intensity_weight = np.exp(-((img[xi][yj] - img[i][j]) ** 2) / (2 * sigma_r**2))
+                    intensity_weight = np.exp(-((img[xi, yj] - img[i, j]) ** 2) / (2 * sigma_r**2))
                     
                     weight = spatial_weight * intensity_weight
-                    weighted_sum += img[xi][yj] * weight
+                    weighted_sum += img[xi, yj] * weight
                     normalization += weight
             
-            result[i][j] = weighted_sum / normalization
+            result[i, j] = weighted_sum / normalization if normalization > 0 else img[i, j]
+    
+    # Приводим результат к uint8, чтобы значения оставались в диапазоне [0, 255]
+    result = np.clip(result, 0, 255).astype(np.uint8)
     return result
 
 
 def median(img, rad):
     """Применение медианной фильтрации с окном (2 * rad + 1) x (2 * rad + 1)."""
     height, width = img.shape
-    window_size = 2 * rad + 1  # Размер окна фильтрации
-    result = np.zeros_like(img)
+    window_size = 2 * rad + 1
+    output_img = np.zeros_like(img)
     
-    # Применение медианной фильтрации
+    # Функция для обработки выхода за границы
+    def get_pixel_value(x, y):
+        # Ограничиваем координаты в пределах изображения
+        x = max(0, min(x, height - 1))
+        y = max(0, min(y, width - 1))
+        return img[x, y]
+    
+    # Применение медианного фильтра
     for i in range(height):
         for j in range(width):
-            # Определяем границы окна
-            i_min = max(i - rad, 0)
-            i_max = min(i + rad + 1, height)
-            j_min = max(j - rad, 0)
-            j_max = min(j + rad + 1, width)
+            # Составляем окно значений с учетом границ
+            window = []
+            for dx in range(-rad, rad + 1):
+                for dy in range(-rad, rad + 1):
+                    window.append(get_pixel_value(i + dx, j + dy))
             
-            # Извлекаем подматрицу и находим медиану
-            window = img[i_min:i_max, j_min:j_max]
-            median_value = np.median(window)
-            result[i, j] = median_value
+            # Сортируем окно и находим медиану вручную
+            window.sort()
+            median_value = window[len(window) // 2]
+            #print(window)
+            
+            # Записываем медианное значение в выходное изображение
+            output_img[i, j] = median_value
     
-    return result
+    return output_img
 
+
+def cartesian_to_polar(matrix):
+    """Перевод амплитудного спектра в полярные координаты."""
+    height, width = matrix.shape
+    center_x, center_y = width // 2, height // 2
+    
+    # Определяем максимальный радиус (от центра до углов)
+    max_radius = int(np.sqrt(center_x**2 + center_y**2))
+    
+    # Перевод спектра в полярные координаты
+    polar_img = cv2.warpPolar(matrix, (max_radius, 360), (center_x, center_y), max_radius, cv2.WARP_FILL_OUTLIERS + cv2.INTER_LINEAR)
+    return polar_img
 
 def compare(img1, img2):
-    """Сравнение изображений на основе преобразования Фурье."""
-    # Преобразование Фурье
+    """Сравнение изображений для проверки, является ли второе изображение сдвинутым и повернутым вариантом первого."""
+    # Вычисление преобразования Фурье и амплитуд
     fft1 = np.fft.fft2(img1)
     fft2 = np.fft.fft2(img2)
-    
-    # Вычисление амплитуд
     amplitude1 = np.abs(fft1)
     amplitude2 = np.abs(fft2)
     
-    # Вычисление разницы амплитуд
-    diff = np.abs(amplitude1 - amplitude2)
-    threshold = np.max(amplitude1) * 0.1  # пример порога сравнения
+    # Перевод амплитудных спектров в полярные координаты
+    polar_amplitude1 = cartesian_to_polar(amplitude1)
+    polar_amplitude2 = cartesian_to_polar(amplitude2)
+    
+    # Размытие амплитуд для уменьшения алиасинга
+    polar_amplitude1 = cv2.GaussianBlur(polar_amplitude1, (5, 5), 0)
+    polar_amplitude2 = cv2.GaussianBlur(polar_amplitude2, (5, 5), 0)
+    
+    # Преобразование Фурье по оси угла
+    fft_polar1 = np.fft.fft(polar_amplitude1, axis=0)
+    fft_polar2 = np.fft.fft(polar_amplitude2, axis=0)
+    amplitude_polar1 = np.abs(fft_polar1)
+    amplitude_polar2 = np.abs(fft_polar2)
+    
+    # Вычисление разницы амплитудных спектров
+    diff = np.abs(amplitude_polar1 - amplitude_polar2)
+    
+    # Порог для определения соответствия
+    threshold = np.mean(amplitude_polar1) * 0.1
     match = np.mean(diff) < threshold
     
-    return match
+    # Вывод результата
+    return 1 if match else 0
 
 
 def img_prepare(img):
@@ -185,7 +230,7 @@ if __name__ == '__main__':  # если файл выполняется как о
     parser.add_argument('input_file2')
     args = parser.parse_args()
 
-    res = None
+    flag_res = 0
 
     # Можете посмотреть, как распознаются разные параметры. Но в самом решении лишнего вывода быть не должно.
     # print('Распознанные параметры:')
@@ -216,27 +261,30 @@ if __name__ == '__main__':  # если файл выполняется как о
         ssim(img1, img2)
 
     elif args.command == 'median':
-        rad = args.parameters[0]
+        rad = int(args.parameters[0])
         res = median(img1, rad)
+        flag_res = 1
 
     elif args.command == 'gauss':
-        sigma_d = args.parameters[0]
+        sigma_d = float(args.parameters[0])
         res = gauss(img1, sigma_d)
+        flag_res = 1
 
     elif args.command == 'bilateral':
-        sigma_d = args.parameters[0]
-        sigma_r = args.parameters[1]
+        sigma_d = float(args.parameters[0])
+        sigma_r = float(args.parameters[1])
         res = bilateral(img1, sigma_d, sigma_r)
+        flag_res = 1
 
     elif args.command == 'compare':
         img2 = skimage.io.imread(args.input_file2)
         img2 = img_prepare(img2)
-        compare(img1, img2)
+        print(compare(img1, img2))
 
-    if res != None:
+    if flag_res:
         # сохранить результат
-        res = np.clip(res, 0, 1)  # обрезать всё, что выходит за диапазон [0, 1]
-        res = np.round(res * 255).astype(np.uint8)  # конвертация в байты
+        #res = np.clip(res, 0, 1)  # обрезать всё, что выходит за диапазон [0, 1]
+        #res = np.round(res * 255).astype(np.uint8)  # конвертация в байты
         skimage.io.imsave(args.input_file2, res)
 
 
