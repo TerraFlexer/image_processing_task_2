@@ -12,3 +12,5 @@
 /median_2.bmp
 /median_3.bmp
 /img_result.bmp
+/check.ipynb
+*.pyc

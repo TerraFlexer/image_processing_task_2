@@ -25,8 +25,8 @@ def psnr(img1, img2):  # можно задавать значения парам
     mse_value = mse(img1, img2)
     if mse_value == 0:
         return float('inf')  # Бесконечность, если изображения идентичны
-    max_pixel_value = 1.0  # Нормализуем до диапазона [0, 1]
-    psnr_value = 20 * np.log10(max_pixel_value / np.sqrt(mse_value))
+    max_pixel_value = 255.0  # Нормализуем до диапазона [0, 1]
+    psnr_value = 20 * np.log10(max_pixel_value) - 10 * np.log10(mse_value)
     print(psnr_value)
 
 
