@@ -1,7 +1,7 @@
 import argparse  # модуль (библиотека) для обработки параметров коммандной строки
 import numpy as np  # модуль для работы с массивами и векторных вычислений
 import skimage.io  # модуль для обработки изображений, подмодуль для чтения и записи
-import cv2
+from scipy.ndimage import gaussian_filter
 # в некоторых модулях некоторые подмодули надо импортировать вручную, а не просто "import module" и потом в коде писать "module.submodule.something..."
 
 
@@ -30,30 +30,18 @@ def psnr(img1, img2):  # можно задавать значения парам
     print(psnr_value)
 
 
-def ssim(img1, img2):  # можно задавать значения параметров по умолчанию
+def ssim(img1, img2):
     """Вычисление индекса структурного сходства (SSIM) между двумя изображениями."""
-    height, width = img1.shape[:2]
     # Средние значения
-    mean1, mean2 = 0.0, 0.0
-    for i in range(height):
-        for j in range(width):
-            mean1 += img1[i][j]
-            mean2 += img2[i][j]
-    mean1 /= (height * width)
-    mean2 /= (height * width)
+    mean1 = np.mean(img1)
+    mean2 = np.mean(img2)
     
-    # Дисперсии и ковариация
-    var1, var2, covariance = 0.0, 0.0, 0.0
-    for i in range(height):
-        for j in range(width):
-            diff1 = img1[i][j] - mean1
-            diff2 = img2[i][j] - mean2
-            var1 += diff1 ** 2
-            var2 += diff2 ** 2
-            covariance += diff1 * diff2
-    var1 /= (height * width - 1)
-    var2 /= (height * width - 1)
-    covariance /= (height * width - 1)
+    # Дисперсии
+    var1 = np.var(img1, ddof=1)
+    var2 = np.var(img2, ddof=1)
+    
+    # Ковариация
+    covariance = np.cov(img1.ravel(), img2.ravel(), ddof=1)[0, 1]
     
     # Параметры стабилизации
     C1 = (0.01 ** 2)
@@ -172,12 +160,23 @@ def cartesian_to_polar(matrix):
     """Перевод амплитудного спектра в полярные координаты."""
     height, width = matrix.shape
     center_x, center_y = width // 2, height // 2
-    
-    # Определяем максимальный радиус (от центра до углов)
     max_radius = int(np.sqrt(center_x**2 + center_y**2))
-    
-    # Перевод спектра в полярные координаты
-    polar_img = cv2.warpPolar(matrix, (max_radius, 360), (center_x, center_y), max_radius, cv2.WARP_FILL_OUTLIERS + cv2.INTER_LINEAR)
+
+    # Создаем сетку координат в полярных координатах
+    theta = np.linspace(0, 2 * np.pi, 360)
+    radius = np.linspace(0, max_radius, max_radius)
+    radius_grid, theta_grid = np.meshgrid(radius, theta)
+
+    # Преобразуем полярные координаты в декартовы
+    x = (radius_grid * np.cos(theta_grid) + center_x).astype(int)
+    y = (radius_grid * np.sin(theta_grid) + center_y).astype(int)
+
+    # Ограничиваем значения, чтобы не выйти за границы матрицы
+    x = np.clip(x, 0, width - 1)
+    y = np.clip(y, 0, height - 1)
+
+    # Создаем полярное представление амплитудного спектра
+    polar_img = matrix[y, x]
     return polar_img
 
 def compare(img1, img2):
@@ -187,28 +186,28 @@ def compare(img1, img2):
     fft2 = np.fft.fft2(img2)
     amplitude1 = np.abs(fft1)
     amplitude2 = np.abs(fft2)
-    
+
     # Перевод амплитудных спектров в полярные координаты
     polar_amplitude1 = cartesian_to_polar(amplitude1)
     polar_amplitude2 = cartesian_to_polar(amplitude2)
-    
+
     # Размытие амплитуд для уменьшения алиасинга
-    polar_amplitude1 = cv2.GaussianBlur(polar_amplitude1, (5, 5), 0)
-    polar_amplitude2 = cv2.GaussianBlur(polar_amplitude2, (5, 5), 0)
-    
+    polar_amplitude1 = gaussian_filter(polar_amplitude1, sigma=1)
+    polar_amplitude2 = gaussian_filter(polar_amplitude2, sigma=1)
+
     # Преобразование Фурье по оси угла
     fft_polar1 = np.fft.fft(polar_amplitude1, axis=0)
     fft_polar2 = np.fft.fft(polar_amplitude2, axis=0)
     amplitude_polar1 = np.abs(fft_polar1)
     amplitude_polar2 = np.abs(fft_polar2)
-    
+
     # Вычисление разницы амплитудных спектров
     diff = np.abs(amplitude_polar1 - amplitude_polar2)
-    
+
     # Порог для определения соответствия
     threshold = np.mean(amplitude_polar1) * 0.1
     match = np.mean(diff) < threshold
-    
+
     # Вывод результата
     return 1 if match else 0
 
