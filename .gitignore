@@ -14,3 +14,5 @@
 /img_result.bmp
 /check.ipynb
 *.pyc
+*.bmp
+*.jpg

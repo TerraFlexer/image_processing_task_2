@@ -37,11 +37,11 @@ def ssim(img1, img2):
     mean2 = np.mean(img2)
     
     # Дисперсии
-    var1 = np.var(img1, ddof=1)
-    var2 = np.var(img2, ddof=1)
+    var1 = np.var(img1, ddof=0)
+    var2 = np.var(img2, ddof=0)
     
     # Ковариация
-    covariance = np.cov(img1.ravel(), img2.ravel(), ddof=1)[0, 1]
+    covariance = np.cov(img1.flatten(), img2.flatten(), ddof=0)[0, 1]
     
     # Параметры стабилизации
     C1 = (0.01 ** 2)
@@ -49,7 +49,7 @@ def ssim(img1, img2):
     
     # Вычисление SSIM
     ssim_value = ((2 * mean1 * mean2 + C1) * (2 * covariance + C2)) / ((mean1 ** 2 + mean2 ** 2 + C1) * (var1 + var2 + C2))
-    print(ssim_value)
+    return ssim_value
 
 
 def gauss(img, sigma_d):
@@ -181,6 +181,9 @@ def cartesian_to_polar(matrix):
 
 def compare(img1, img2):
     """Сравнение изображений для проверки, является ли второе изображение сдвинутым и повернутым вариантом первого."""
+    # Получение размеров изображений
+    height, width = img1.shape
+
     # Вычисление преобразования Фурье и амплитуд
     fft1 = np.fft.fft2(img1)
     fft2 = np.fft.fft2(img2)
@@ -203,10 +206,13 @@ def compare(img1, img2):
 
     # Вычисление разницы амплитудных спектров
     diff = np.abs(amplitude_polar1 - amplitude_polar2)
+    ssim_diff = ssim(np.abs(amplitude_polar1), np.abs(amplitude_polar2))
+
+    # print(np.mean(diff) / (height * width) * 10, ssim_diff, np.mean(diff) / (height * width) * 10 + ssim_diff)
 
     # Порог для определения соответствия
-    threshold = np.mean(amplitude_polar1) * 0.1
-    match = np.mean(diff) < threshold
+    threshold = 2
+    match = (np.mean(diff) / (height * width) * 10 + ssim_diff) < threshold
 
     # Вывод результата
     return 1 if match else 0
@@ -260,7 +266,7 @@ if __name__ == '__main__':  # если файл выполняется как о
     elif args.command == 'ssim':
         img2 = skimage.io.imread(args.input_file2)
         img2 = img_prepare(img2)
-        ssim(img1, img2)
+        print(ssim(img1, img2))
 
     elif args.command == 'median':
         rad = int(args.parameters[0])
